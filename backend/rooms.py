@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
-from models import Room, RoomMember, User
+from models import Room, RoomMember, User, Message
 
 rooms_bp = Blueprint('rooms', __name__)
 
@@ -44,5 +44,26 @@ def get_my_rooms():
     rooms = [m.room for m in memberships]
 
     result = [{"id": r.id, "name": r.name, "is_group": r.is_group} for r in rooms]
+
+    return jsonify(result), 200
+
+@rooms_bp.route('/<int:room_id>/messages', methods=['GET'])
+@jwt_required()
+def get_room_messages(room_id):
+    current_user_id = get_jwt_identity()
+
+    membership = RoomMember.query.filter_by(room_id=room_id, user_id=int(current_user_id)).first()
+    if not membership:
+        return jsonify({"error": "Δεν είσαι μέλος αυτού του δωματίου"}), 403
+
+    messages = Message.query.filter_by(room_id=room_id).order_by(Message.created_at.asc()).all()
+
+    result = [{
+        "id": m.id,
+        "user_id": m.user_id,
+        "username": m.sender.username,
+        "text": m.text,
+        "created_at": m.created_at.isoformat()
+    } for m in messages]
 
     return jsonify(result), 200
