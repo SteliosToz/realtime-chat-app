@@ -6,7 +6,7 @@ from flask_socketio import SocketIO
 from dotenv import load_dotenv
 import sockets 
 from datetime import timedelta
-
+from rooms import rooms_bp
 from extensions import db, socketio
 from models import User, Room, RoomMember, Message
 from auth import auth_bp
@@ -23,6 +23,7 @@ jwt = JWTManager(app)
 CORS(app)
 socketio.init_app(app)
 app.register_blueprint(auth_bp, url_prefix='/api')
+app.register_blueprint(rooms_bp, url_prefix='/api/rooms')
 
 @app.route('/')
 def index():
