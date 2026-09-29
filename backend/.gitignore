@@ -4,4 +4,4 @@ __pycache__/
 .env
 *.db
 instance/
-test_socket_client.py
+test_socket_client*.py
