@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg-main: #313338;
+  --color-bg-sidebar: #2b2d31;
+  --color-bg-deep: #1e1f22;
+  --color-bg-elevated: #383a40;
+
+  --color-accent: #5865f2;
+  --color-accent-hover: #4752c4;
+
+  --color-text-primary: #dbdee1;
+  --color-text-secondary: #b5bac1;
+  --color-text-header: #f2f3f5;
+
+  --color-border: #3f4147;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
