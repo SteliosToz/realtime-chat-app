@@ -67,3 +67,29 @@ def get_room_messages(room_id):
     } for m in messages]
 
     return jsonify(result), 200
+
+@rooms_bp.route('/<int:room_id>/members', methods=['POST'])
+@jwt_required()
+def add_room_member(room_id):
+    current_user_id = get_jwt_identity()
+
+    membership = RoomMember.query.filter_by(room_id=room_id, user_id=int(current_user_id)).first()
+    if not membership:
+        return jsonify({"error": "Δεν είσαι μέλος αυτού του δωματίου"}), 403
+
+    data = request.get_json()
+    username = data.get('username')
+
+    user_to_add = User.query.filter_by(username=username).first()
+    if not user_to_add:
+        return jsonify({"error": "Ο χρήστης δεν βρέθηκε"}), 404
+
+    existing = RoomMember.query.filter_by(room_id=room_id, user_id=user_to_add.id).first()
+    if existing:
+        return jsonify({"error": "Ο χρήστης είναι ήδη μέλος"}), 400
+
+    new_membership = RoomMember(room_id=room_id, user_id=user_to_add.id)
+    db.session.add(new_membership)
+    db.session.commit()
+
+    return jsonify({"message": f"Ο {username} προστέθηκε στο δωμάτιο"}), 201
