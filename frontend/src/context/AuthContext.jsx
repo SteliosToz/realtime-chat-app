@@ -4,7 +4,10 @@ import api from '../api/axios'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState(() => {
+    const stored = localStorage.getItem('user')
+    return stored ? JSON.parse(stored) : null
+  })
   const [token, setToken] = useState(localStorage.getItem('token'))
 
   useEffect(() => {
@@ -16,6 +19,14 @@ export function AuthProvider({ children }) {
       delete api.defaults.headers.common['Authorization']
     }
   }, [token])
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user))
+    } else {
+      localStorage.removeItem('user')
+    }
+  }, [user])
 
   const login = async (email, password) => {
     const response = await api.post('/login', { email, password })
