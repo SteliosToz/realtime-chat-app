@@ -14,6 +14,9 @@ function ChatPage() {
   const [selectedRoom, setSelectedRoom] = useState(null)
   const [messages, setMessages] = useState([])
   const [messageText, setMessageText] = useState('')
+  const [showInvite, setShowInvite] = useState(false)
+  const [inviteUsername, setInviteUsername] = useState('')
+  const [inviteError, setInviteError] = useState('')
   const { token, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -77,6 +80,18 @@ function ChatPage() {
     setMessageText('')
   }
 
+  const handleInvite = async (e) => {
+    e.preventDefault()
+    setInviteError('')
+    try {
+      await api.post(`/rooms/${selectedRoom.id}/members`, { username: inviteUsername })
+      setInviteUsername('')
+      setShowInvite(false)
+    } catch (err) {
+      setInviteError(err.response?.data?.error || 'Κάτι πήγε στραβά')
+    }
+  }
+
   const handleLogout = () => {
     logout()
     navigate('/login')
@@ -112,8 +127,46 @@ function ChatPage() {
       <div className="flex-1 flex flex-col">
         {selectedRoom ? (
           <>
-            <div className="p-4 border-b border-border">
+            <div className="p-4 border-b border-border flex items-center justify-between">
               <h2 className="text-text-header font-bold"># {selectedRoom.name}</h2>
+
+              {showInvite ? (
+                <div>
+                  <form onSubmit={handleInvite} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={inviteUsername}
+                      onChange={(e) => setInviteUsername(e.target.value)}
+                      placeholder="username"
+                      autoFocus
+                      className="bg-bg-elevated text-text-primary text-sm rounded p-1.5 outline-none border border-border focus:border-accent"
+                    />
+                    <button type="submit" className="bg-accent hover:bg-accent-hover text-white text-sm px-3 py-1.5 rounded">
+                      Πρόσκληση
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowInvite(false)
+                        setInviteError('')
+                      }}
+                      className="text-text-secondary text-sm hover:text-accent"
+                    >
+                      Ακύρωση
+                    </button>
+                  </form>
+                  {inviteError && (
+                    <p className="text-red-400 text-xs mt-1">{inviteError}</p>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowInvite(true)}
+                  className="text-text-secondary text-sm hover:text-accent"
+                >
+                  + Πρόσκληση
+                </button>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">

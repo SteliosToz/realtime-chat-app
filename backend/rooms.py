@@ -1,38 +1,46 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from extensions import db
-from models import Room, RoomMember, User, Message
+from models import Room, RoomMember, User, Message, Invitation
 
 rooms_bp = Blueprint('rooms', __name__)
 
 
-@rooms_bp.route('', methods=['POST'])
+@rooms_bp.route('/<int:room_id>/members', methods=['POST'])
 @jwt_required()
-def create_room():
+def invite_to_room(room_id):
     current_user_id = get_jwt_identity()
+
+    membership = RoomMember.query.filter_by(room_id=room_id, user_id=int(current_user_id)).first()
+    if not membership:
+        return jsonify({"error": "Δεν είσαι μέλος αυτού του δωματίου"}), 403
+
     data = request.get_json()
+    username = data.get('username')
 
-    name = data.get('name')
-    is_group = data.get('is_group', False)
-    member_ids = data.get('member_ids', [])  # άλλοι χρήστες που θα μπουν στο room
+    user_to_invite = User.query.filter_by(username=username).first()
+    if not user_to_invite:
+        return jsonify({"error": "Ο χρήστης δεν βρέθηκε"}), 404
 
-    new_room = Room(name=name, is_group=is_group)
-    db.session.add(new_room)
+    already_member = RoomMember.query.filter_by(room_id=room_id, user_id=user_to_invite.id).first()
+    if already_member:
+        return jsonify({"error": "Ο χρήστης είναι ήδη μέλος"}), 400
+
+    existing_invite = Invitation.query.filter_by(
+        room_id=room_id, invited_user_id=user_to_invite.id, status='pending'
+    ).first()
+    if existing_invite:
+        return jsonify({"error": "Υπάρχει ήδη εκκρεμές αίτημα για αυτόν τον χρήστη"}), 400
+
+    invitation = Invitation(
+        room_id=room_id,
+        invited_user_id=user_to_invite.id,
+        invited_by_id=int(current_user_id),
+    )
+    db.session.add(invitation)
     db.session.commit()
 
-    # Πρόσθεσε τον δημιουργό σαν μέλος
-    all_member_ids = set(member_ids + [int(current_user_id)])
-    for uid in all_member_ids:
-        membership = RoomMember(room_id=new_room.id, user_id=uid)
-        db.session.add(membership)
-
-    db.session.commit()
-
-    return jsonify({
-        "id": new_room.id,
-        "name": new_room.name,
-        "is_group": new_room.is_group
-    }), 201
+    return jsonify({"message": f"Το αίτημα στάλθηκε στον {username}"}), 201
 
 
 @rooms_bp.route('', methods=['GET'])

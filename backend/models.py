@@ -44,3 +44,15 @@ class Message(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     sender = db.relationship('User', backref='messages')
+
+class Invitation(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    room_id = db.Column(db.Integer, db.ForeignKey('room.id'), nullable=False)
+    invited_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    invited_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    room = db.relationship('Room', backref='invitations')
+    invited_user = db.relationship('User', foreign_keys=[invited_user_id], backref='received_invitations')
+    invited_by = db.relationship('User', foreign_keys=[invited_by_id], backref='sent_invitations')    
