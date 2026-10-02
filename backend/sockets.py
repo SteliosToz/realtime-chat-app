@@ -29,7 +29,16 @@ def handle_connect(auth):
         return False
 
     connected_users[request.sid] = user_id
+    join_room(f"user_{user_id}")
     print(f"Ο χρήστης {user_id} συνδέθηκε (sid={request.sid})", flush=True)
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    sid = request.sid
+    user_id = connected_users.pop(sid, None)
+    if user_id:
+        print(f"Ο χρήστης {user_id} αποσυνδέθηκε (sid={sid})", flush=True)
 
 
 @socketio.on('join_room')
