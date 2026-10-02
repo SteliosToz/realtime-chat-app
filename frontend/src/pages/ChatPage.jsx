@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Bell } from 'lucide-react'
 import api from '../api/axios'
 import socket from '../socket'
 import { useAuth } from '../context/AuthContext'
@@ -17,6 +18,17 @@ function ChatPage() {
   const [showInvite, setShowInvite] = useState(false)
   const [inviteUsername, setInviteUsername] = useState('')
   const [inviteError, setInviteError] = useState('')
+
+  const [invitations, setInvitations] = useState([])
+  const [showNotifications, setShowNotifications] = useState(false)
+
+  const [toast, setToast] = useState(null)
+
+  const showToast = (message) => {
+    setToast(message)
+    setTimeout(() => setToast(null), 3000)
+  }
+
   const { token, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -25,16 +37,29 @@ function ChatPage() {
     selectedRoomRef.current = selectedRoom
   }, [selectedRoom])
 
+  const fetchRooms = async () => {
+    try {
+      const response = await api.get('/rooms')
+      setRooms(response.data)
+    } catch (err) {
+      console.error('Σφάλμα στη λήψη rooms:', err)
+    }
+  }
+
   useEffect(() => {
-    const fetchRooms = async () => {
+    fetchRooms()
+  }, [])
+
+  useEffect(() => {
+    const fetchInvitations = async () => {
       try {
-        const response = await api.get('/rooms')
-        setRooms(response.data)
+        const response = await api.get('/invitations')
+        setInvitations(response.data)
       } catch (err) {
-        console.error('Σφάλμα στη λήψη rooms:', err)
+        console.error('Σφάλμα στη λήψη προσκλήσεων:', err)
       }
     }
-    fetchRooms()
+    fetchInvitations()
   }, [])
 
   useEffect(() => {
@@ -46,8 +71,13 @@ function ChatPage() {
       setMessages((prev) => [...prev, data])
     })
 
+    socket.on('new_invitation', (data) => {
+      setInvitations((prev) => [...prev, data])
+    })
+
     return () => {
       socket.off('new_message')
+      socket.off('new_invitation')
       socket.disconnect()
     }
   }, [token])
@@ -85,10 +115,31 @@ function ChatPage() {
     setInviteError('')
     try {
       await api.post(`/rooms/${selectedRoom.id}/members`, { username: inviteUsername })
+      showToast(`Η πρόσκληση στάλθηκε στον ${inviteUsername}`)
       setInviteUsername('')
       setShowInvite(false)
     } catch (err) {
       setInviteError(err.response?.data?.error || 'Κάτι πήγε στραβά')
+    }
+  }
+
+  const handleAcceptInvitation = async (invitationId) => {
+    try {
+      await api.post(`/invitations/${invitationId}/accept`)
+      setInvitations((prev) => prev.filter((inv) => inv.id !== invitationId))
+      fetchRooms()
+      setShowNotifications(false)
+    } catch (err) {
+      console.error('Σφάλμα αποδοχής:', err)
+    }
+  }
+
+  const handleRejectInvitation = async (invitationId) => {
+    try {
+      await api.post(`/invitations/${invitationId}/reject`)
+      setInvitations((prev) => prev.filter((inv) => inv.id !== invitationId))
+    } catch (err) {
+      console.error('Σφάλμα απόρριψης:', err)
     }
   }
 
@@ -101,11 +152,57 @@ function ChatPage() {
     <div className="min-h-screen flex bg-bg-main">
       {/* Sidebar */}
       <div className="w-64 bg-bg-sidebar border-r border-border flex flex-col">
-        <div className="p-4 border-b border-border flex items-center justify-between">
+        <div className="p-4 border-b border-border flex items-center justify-between relative">
           <h2 className="text-text-header font-bold">Rooms</h2>
-          <button onClick={handleLogout} className="text-text-secondary text-xs hover:text-accent">
-            Logout
-          </button>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowNotifications((prev) => !prev)}
+              className="text-text-secondary hover:text-accent relative"
+            >
+              <Bell size={20} />
+              {invitations.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center">
+                  {invitations.length}
+                </span>
+              )}
+            </button>
+
+            <button onClick={handleLogout} className="text-text-secondary text-xs hover:text-accent">
+              Logout
+            </button>
+          </div>
+
+          {showNotifications && (
+            <div className="absolute left-4 top-14 w-64 bg-bg-elevated border border-border rounded shadow-lg z-10">
+              {invitations.length === 0 ? (
+                <p className="text-text-secondary text-sm p-3">Καμία πρόσκληση</p>
+              ) : (
+                invitations.map((inv) => (
+                  <div key={inv.id} className="p-3 border-b border-border last:border-b-0">
+                    <p className="text-text-primary text-sm">
+                      <span className="font-semibold">{inv.invited_by}</span> σε προσκάλεσε στο{' '}
+                      <span className="font-semibold"># {inv.room_name}</span>
+                    </p>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={() => handleAcceptInvitation(inv.id)}
+                        className="bg-accent hover:bg-accent-hover text-white text-xs px-2 py-1 rounded"
+                      >
+                        Αποδοχή
+                      </button>
+                      <button
+                        onClick={() => handleRejectInvitation(inv.id)}
+                        className="text-text-secondary hover:text-red-400 text-xs px-2 py-1 rounded border border-border"
+                      >
+                        Απόρριψη
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -127,7 +224,7 @@ function ChatPage() {
       <div className="flex-1 flex flex-col">
         {selectedRoom ? (
           <>
-            <div className="p-4 border-b border-border flex items-center justify-between">
+            <div className="p-4 border-b border-border flex items-center justify-between relative">
               <h2 className="text-text-header font-bold"># {selectedRoom.name}</h2>
 
               {showInvite ? (
@@ -166,6 +263,12 @@ function ChatPage() {
                 >
                   + Πρόσκληση
                 </button>
+              )}
+
+              {toast && (
+                <div className="absolute right-4 top-14 bg-bg-elevated border border-border text-text-primary text-sm px-4 py-3 rounded shadow-lg">
+                  {toast}
+                </div>
               )}
             </div>
 
