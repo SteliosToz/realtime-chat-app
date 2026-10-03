@@ -62,7 +62,21 @@ def get_my_rooms():
     memberships = RoomMember.query.filter_by(user_id=current_user_id).all()
     rooms = [m.room for m in memberships]
 
-    result = [{"id": r.id, "name": r.name, "is_group": r.is_group} for r in rooms]
+    result = []
+    for r in rooms:
+        room_data = {"id": r.id, "name": r.name, "is_group": r.is_group}
+
+        if not r.is_group:
+            other_member = RoomMember.query.filter(
+                RoomMember.room_id == r.id,
+                RoomMember.user_id != int(current_user_id)
+            ).first()
+
+            if other_member:
+                room_data["other_user_id"] = other_member.user_id
+                room_data["other_username"] = other_member.user.username
+
+        result.append(room_data)
 
     return jsonify(result), 200
 

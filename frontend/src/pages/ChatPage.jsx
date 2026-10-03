@@ -18,7 +18,7 @@ function ChatPage() {
   const [showInvite, setShowInvite] = useState(false)
   const [inviteUsername, setInviteUsername] = useState('')
   const [inviteError, setInviteError] = useState('')
-
+  const [onlineUsers, setOnlineUsers] = useState({})
   const [invitations, setInvitations] = useState([])
   const [showNotifications, setShowNotifications] = useState(false)
 
@@ -62,7 +62,7 @@ function ChatPage() {
     fetchInvitations()
   }, [])
 
-  useEffect(() => {
+   useEffect(() => {
     socket.auth = { token }
     socket.connect()
 
@@ -75,9 +75,28 @@ function ChatPage() {
       setInvitations((prev) => [...prev, data])
     })
 
+    socket.on('user_status_changed', (data) => {
+      setOnlineUsers((prev) => ({
+        ...prev,
+        [data.user_id]: data.status === 'online'
+      }))
+    })
+
+    socket.on('online_users_snapshot', (data) => {
+      setOnlineUsers((prev) => {
+        const updated = { ...prev }
+        data.online_user_ids.forEach((id) => {
+          updated[id] = true
+        })
+        return updated
+      })
+    })
+
     return () => {
       socket.off('new_message')
       socket.off('new_invitation')
+      socket.off('user_status_changed')
+      socket.off('online_users_snapshot')
       socket.disconnect()
     }
   }, [token])
@@ -206,20 +225,26 @@ function ChatPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {rooms.map((room) => (
-            <button
-              key={room.id}
-              onClick={() => setSelectedRoom(room)}
-              className={`w-full text-left px-4 py-2 text-text-primary hover:bg-bg-elevated ${
-                selectedRoom?.id === room.id ? 'bg-bg-elevated' : ''
-              }`}
-            >
-              # {room.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
+  {rooms.map((room) => (
+    <button
+      key={room.id}
+      onClick={() => setSelectedRoom(room)}
+      className={`w-full text-left px-4 py-2 text-text-primary hover:bg-bg-elevated flex items-center gap-2 ${
+        selectedRoom?.id === room.id ? 'bg-bg-elevated' : ''
+      }`}
+    >
+      <span># {room.is_group ? room.name : room.other_username}</span>
+      {!room.is_group && room.other_user_id && (
+        <span
+          className={`w-2 h-2 rounded-full ${
+            onlineUsers[room.other_user_id] ? 'bg-green-500' : 'bg-gray-500'
+          }`}
+        />
+      )}
+    </button>
+  ))}
+</div>
+</div>
       {/* Κυρίως χώρος */}
       <div className="flex-1 flex flex-col">
         {selectedRoom ? (

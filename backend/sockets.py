@@ -8,6 +8,18 @@ print("🔵 Το sockets.py φορτώθηκε!")
 
 connected_users = {}
 
+def get_related_user_ids(user_id):
+    room_ids = [m.room_id for m in RoomMember.query.filter_by(user_id=int(user_id)).all()]
+
+    if not room_ids:
+        return []
+
+    memberships = RoomMember.query.filter(RoomMember.room_id.in_(room_ids)).all()
+    related_ids = {m.user_id for m in memberships if m.user_id != int(user_id)}
+
+    return list(related_ids)
+
+
 
 @socketio.on('connect')
 def handle_connect(auth):
@@ -32,6 +44,19 @@ def handle_connect(auth):
     join_room(f"user_{user_id}")
     print(f"Ο χρήστης {user_id} συνδέθηκε (sid={request.sid})", flush=True)
 
+    related_ids = get_related_user_ids(user_id)
+    for related_id in related_ids:
+        socketio.emit('user_status_changed', {
+            'user_id': int(user_id),
+            'status': 'online'
+        }, to=f"user_{related_id}")
+
+    online_related_ids = [
+        rid for rid in related_ids
+        if str(rid) in [str(v) for v in connected_users.values()]
+    ]
+    emit('online_users_snapshot', {'online_user_ids': online_related_ids})
+
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -39,6 +64,12 @@ def handle_disconnect():
     user_id = connected_users.pop(sid, None)
     if user_id:
         print(f"Ο χρήστης {user_id} αποσυνδέθηκε (sid={sid})", flush=True)
+        related_ids = get_related_user_ids(user_id)
+        for related_id in related_ids:
+            socketio.emit('user_status_changed', {
+                'user_id': int(user_id),
+                'status': 'offline'
+            }, to=f"user_{related_id}")
 
 
 @socketio.on('join_room')
